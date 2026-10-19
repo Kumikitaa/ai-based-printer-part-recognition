@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <title>Kamero: Printer Part Recognition System</title>
+
+        <link rel="stylesheet" href="./assets/styles/main.css">
+    </head>
+
+    <body>
+
+        <!-- ========================================
+             Header Section
+             ======================================== -->
+        <header>
+            <img src="/static/hp_logo.png" alt="HP" onerror="this.remove()">
+            <img src="/static/woosong_logo.png" alt="Woosong University" onerror="this.remove()">
+
+            <span class="mark">Kamero</span>
+            <span class="tag">Printer part recognition</span>
+            <span class="dot" id="dot" title="Server status"></span>
+        </header>
+
+        <!-- ========================================
+             Navigation Section
+             ======================================== -->
+        <nav class="tabs" id="tabs">
+            <button data-v="rec" class="on">Recognize</button>
+            <button data-v="cat">Parts catalogue</button>
+            <button data-v="his">History</button>
+        </nav>
+
+
+        <!-- ========================================
+             Main Content
+             ======================================== -->
+        <main>
+
+            <!-- ========================================
+                 Recognition View Content Block
+                 ======================================== -->
+            <div id="v-rec">
+                <div id="demo" hidden>
+                    Demo mode - results are simulated and no server is called.
+                </div>
+
+                <!-- Recognition Steps -->
+                <ol class="steps" id="steps">
+                    <li>Choose model</li>
+                    <li>Upload image</li>
+                    <li>Recognize</li>
+                    <li>Review parts</li>
+                    <li>Export</li>
+                </ol>
+
+                <!-- ========================================
+                     Printer Model and Image Upload Section
+                     ======================================== -->
+                <section class="card">
+                    <label for="model">Printer model</label>
+
+                    <select id="model">
+                        <option value="">Select a printer model…</option>
+                    </select>
+
+                    <div class="err" id="merr"></div>
+
+
+                    <!-- Image Upload -->
+                    <div class="drop" id="drop">
+                        <p><strong id="dl">Drag and drop a printer photo here</strong></p>
+
+                        <p>JPG or PNG, up to 10 MB</p>
+
+                        <div class="row" style="justify-content:center;margin-top:8px">
+                            <button type="button" id="browse">
+                                Browse files
+                            </button>
+
+                            <button type="button" id="shoot">
+                                Take photo
+                            </button>
+                        </div>
+
+                        <input type="file" id="f1" accept="image/jpeg,image/png">
+                        <input type="file" id="f2" accept="image/jpeg,image/png" capture="environment">
+
+                        <img id="pv" alt="Selected photo" hidden>
+                    </div>
+
+                    <div class="err" id="ferr"></div>
+
+                    <!-- Recognition Controls -->
+                    <div class="row">
+                        <button class="p" id="go">
+                            Start recognition
+                        </button>
+
+                        <button id="reset" hidden>
+                            Start over
+                        </button>
+                    </div>
+                </section>
+
+
+                <!-- Recognition Messages -->
+                <div id="msg" role="status" aria-live="polite"></div>
+
+                <!-- ========================================
+                     Recognition Results Section
+                     ======================================== -->
+                <section id="results" hidden>
+                    <div class="grid">
+                        <!-- Image Visualization -->
+                        <div>
+                            <div class="zoom">
+                                <button id="zo" aria-label="Zoom out">−</button>
+                                <button id="zi" aria-label="Zoom in">+</button>
+                                <button id="zr">Fit</button>
+                            </div>
+
+                            <div class="stage">
+                                <canvas id="cv"></canvas>
+                            </div>
+
+                            <p class="meta" id="meta"></p>
+                        </div>
+
+                        <!-- Detected Parts and Details -->
+                        <div>
+                            <h2 id="count"></h2>
+
+                            <div id="list"></div>
+
+                            <div class="detail" id="detail"></div>
+
+                            <div class="row">
+                                <button class="p" id="exp">
+                                    Download results (.zip)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- ========================================
+                 Parts Catalogue View Section
+                 ======================================== -->
+            <section id="v-cat" hidden>
+                <h2>Supported parts</h2>
+
+                <input id="q" type="search" placeholder="Search part number or description" aria-label="Search parts">
+
+                <p class="meta" id="cn"></p>
+
+                <div id="clist"></div>
+            </section>
+
+            <!-- ========================================
+                 Recognition History View Section
+                 ======================================== -->
+            <section id="v-his" hidden>
+                <div class="row" style="justify-content:space-between;margin:0 0 10px">
+                    <h2 style="margin:0">
+                        Recent recognitions (this device)
+                    </h2>
+
+                    <button id="hclr">
+                        Clear history
+                    </button>
+                </div>
+
+                <div id="hlist"></div>
+            </section>
+        </main>
+
+        <!-- ========================================
+             JavaScript Linking
+             ======================================== -->
+        <script src="./assets/scripts/main.js"></script>
+    </body>
+</html>
