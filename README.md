@@ -2,6 +2,15 @@
 ## Project Structure
 ```text
 ai-based-printer-part-recognition/
+├── web_app/
+│   ├── frontend
+│   │   ├── index.html/       # Main web page
+│   │   └── assets/
+│   │       ├── images/       # Interface images, logos, and icons
+│   │       ├── scripts/      # JavaScript files
+│   │       └── styles/       # CSS files
+│   ├── backend/
+│   └── README.md             # Instructions for starting the frontend and backend
 ├── data/
 │   ├── raw/                  # Original collected printer-part images and annotations
 │   ├── processed/            # Cleaned, resized, or split dataset files
