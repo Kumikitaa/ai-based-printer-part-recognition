@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>E783 Dataset Catalogue</title>
+<style>
+body{font:16px system-ui,sans-serif;background:#f3f6fa;color:#182439;margin:0;padding:32px}
+main{max-width:1200px;margin:auto}a{color:#1855b6}h1{margin-bottom:8px}
+.panel{background:white;padding:24px;border:1px solid #dce3ee;border-radius:12px;margin:20px 0}
+select,button{padding:10px;border:1px solid #b5c3d7;border-radius:6px;background:white;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:14px}td,th{text-align:left;padding:12px;border-bottom:1px solid #e5eaf1}
+.scroll{overflow:auto}.note{color:#52617a;line-height:1.7}#status{white-space:pre-line}
+</style></head><body><main>
+<nav><a href="/" data-en="← Recognition">← 인식 화면 / Recognition</a>
+<span style="float:right"><a href="/datasets" lang="ko">한국어</a> | <a href="/datasets?lang=en" lang="en">English</a></span></nav>
+<h1 data-en="E783 Parts &amp; Video Catalogue">E783 부품·영상 목록</h1>
+<p class="note" data-en="This dataset is managed separately from the 40 parts supported by the existing recognition model.">Dataset catalogue · 기존 인식 모델의 40개 부품과 별도로 관리하는 자료입니다.</p>
+<section class="panel"><label><span data-en="Dataset">데이터셋</span> <select id="datasets"></select></label>
+<p id="status" role="status" data-en="Loading…">불러오는 중…</p>
+<p class="note" data-en="Videos open from their original Drive links. Part associations are inferred from filenames or folder names. Video contents, bounding-box annotations, and training/validation/test splits have not been verified. Files with matching names and sizes are duplicate candidates, not confirmed duplicates.">영상은 Drive 원본 링크로 열립니다. 파일명·폴더명에서 추정한 부품 연결이며 영상 내용, 박스 라벨, 학습/검증/시험 분할은 아직 검증되지 않았습니다. 이름과 크기가 같은 파일은 중복 후보이며 실제 중복이 확인된 것은 아닙니다.</p></section>
+<section class="panel"><label><span data-en="Filter by part">부품별 보기</span> <select id="parts"><option value="" data-en="All parts">전체 부품</option></select></label>
+<p id="count"></p><div class="scroll"><table><thead><tr><th data-en="Video">영상</th><th data-en="Folder">폴더</th><th data-en="Inferred part numbers">추정 부품 번호</th><th data-en="Size">크기</th></tr></thead><tbody id="rows"></tbody></table></div>
+<p><button id="prev" data-en="Previous">이전</button> <button id="next" data-en="Next">다음</button></p></section>
+</main><script src="/static/datasets.js?v=2"></script></body></html>
+

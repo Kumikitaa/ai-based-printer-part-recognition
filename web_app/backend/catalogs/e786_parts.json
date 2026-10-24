@@ -1,0 +1,160 @@
+{
+  "source": "E786_Component_Part_Information - Sheet1.pdf (pages 1-2)",
+  "parts": [
+    {
+      "part_no": 1,
+      "svc_number": "5PN62-67001",
+      "description": "SVC_HP LaserJet Fuser 220V Kit"
+    },
+    {
+      "part_no": 2,
+      "svc_number": "W9075-67001",
+      "description": "SVC_HP LaserJet CYM Managed Imaging Drum"
+    },
+    {
+      "part_no": 3,
+      "svc_number": "W9074-67001",
+      "description": "SVC_HP LaserJet Black Managed Imaging Drum"
+    },
+    {
+      "part_no": 4,
+      "svc_number": "X3A83-67923",
+      "description": "SVC_HP LaserJet Toner Collection Unit"
+    },
+    {
+      "part_no": 5,
+      "svc_number": "5PN58-67001",
+      "description": "SVC_HP LaserJet Yellow Developer Unit"
+    },
+    {
+      "part_no": 6,
+      "svc_number": "5PN59-67001",
+      "description": "SVC_HP LaserJet Magenta Developer Unit"
+    },
+    {
+      "part_no": 7,
+      "svc_number": "5PN64-67001",
+      "description": "SVC_HP LaserJet Image Transfer Blade Kit"
+    },
+    {
+      "part_no": 8,
+      "svc_number": "430H4-67001",
+      "description": "SVC_HP LaserJet Image Transfer Kit"
+    },
+    {
+      "part_no": 9,
+      "svc_number": "5QJ90-60118",
+      "description": "Front cover assembly"
+    },
+    {
+      "part_no": 10,
+      "svc_number": "5PN66-67001",
+      "description": "SVC_HP LaserJet Trays 2-x Roller Kit"
+    },
+    {
+      "part_no": 11,
+      "svc_number": "5QJ90-60111",
+      "description": "Tray 2 cassette"
+    },
+    {
+      "part_no": 12,
+      "svc_number": "5QJ90-60119",
+      "description": "Tray 3 cassette"
+    },
+    {
+      "part_no": 13,
+      "svc_number": "6ER04-61005",
+      "description": "Controller cover"
+    },
+    {
+      "part_no": 14,
+      "svc_number": "6EQ94-40014",
+      "description": "Rear upper cover"
+    },
+    {
+      "part_no": 15,
+      "svc_number": "6EQ94-40004",
+      "description": "Rear lower cover"
+    },
+    {
+      "part_no": 16,
+      "svc_number": "5PN65-67001",
+      "description": "SVC_T2 transfer assembly"
+    },
+    {
+      "part_no": 17,
+      "svc_number": "JC95-02257A",
+      "description": "Right door assembly"
+    },
+    {
+      "part_no": 18,
+      "svc_number": "5QJ98-60111",
+      "description": "Exit unit"
+    },
+    {
+      "part_no": 19,
+      "svc_number": "933853-011",
+      "description": "Hard disk 500GB SED"
+    },
+    {
+      "part_no": 20,
+      "svc_number": "3SJ06-60001",
+      "description": "Island of Data (IOD) PCA"
+    },
+    {
+      "part_no": 21,
+      "svc_number": "T3U64-60001",
+      "description": "Echo PCA"
+    },
+    {
+      "part_no": 22,
+      "svc_number": "6CF14-67013",
+      "description": "Main PCA (Formatter)"
+    },
+    {
+      "part_no": 23,
+      "svc_number": "JC44-00211F",
+      "description": "Fuser drive board (FDB), 220V"
+    },
+    {
+      "part_no": 24,
+      "svc_number": "5QJ90-60015",
+      "description": "Low Voltage Power Supply (LVPS), 220V"
+    },
+    {
+      "part_no": 25,
+      "svc_number": "JC31-00184B",
+      "description": "Fuser motor"
+    },
+    {
+      "part_no": 26,
+      "svc_number": "JC93-01686A",
+      "description": "Exit motor"
+    },
+    {
+      "part_no": 27,
+      "svc_number": "JC93-01678A",
+      "description": "Fuser, Exit drive assembly"
+    },
+    {
+      "part_no": 28,
+      "svc_number": "JC44-00212D",
+      "description": "High Voltage Power Supply (HVPS)"
+    },
+    {
+      "part_no": 29,
+      "svc_number": "JC97-05148A",
+      "description": "Laser scanner unit (LSU)"
+    },
+    {
+      "part_no": 30,
+      "svc_number": "5QK42-60104",
+      "description": "Control panel (10.1 inch)"
+    },
+    {
+      "part_no": 31,
+      "svc_number": "5QK18-67002",
+      "description": "USB Hub PCA"
+    }
+  ]
+}

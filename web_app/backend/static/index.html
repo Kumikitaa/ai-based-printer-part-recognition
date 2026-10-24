@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kamero — Printer Part Recognition</title>
+<link rel="stylesheet" href="/static/kamero.css">
+</head>
+<body>
+<header>
+  <img src="/static/hp_logo.png" alt="HP" onerror="this.remove()">
+  <img src="/static/woosong_logo.png" alt="Woosong University" onerror="this.remove()">
+  <span class="mark">Kamero</span><span class="tag">Printer part recognition</span>
+  <span class="dot" id="dot" title="Server status"></span>
+  <a href="/datasets" style="margin-left:auto;color:inherit">E783 dataset</a>
+</header>
+<nav class="tabs" id="tabs"><button data-v="rec" class="on">Recognize</button><button data-v="cat">Model parts (40)</button><button data-v="dataset">E783 dataset</button><button data-v="his">History</button></nav>
+<main>
+  <div id="v-rec">
+  <div id="demo" hidden>Demo mode — results are simulated and no server is called.</div>
+  <ol class="steps" id="steps"><li>Choose scope</li><li>Upload image</li><li>Recognize</li><li>Review parts</li><li>Export</li></ol>
+
+  <section class="card">
+    <label for="model">Recognition scope</label>
+    <select id="model"><option value="">Select a recognition scope…</option></select>
+    <div class="err" id="merr"></div>
+    <div class="drop" id="drop">
+      <p><strong id="dl">Drag and drop a printer photo here</strong></p>
+      <p>JPG or PNG, up to 10 MB</p>
+      <div class="row" style="justify-content:center;margin-top:8px">
+        <button type="button" id="browse">Browse files</button>
+        <button type="button" id="shoot">Take photo</button>
+      </div>
+      <input type="file" id="f1" accept="image/jpeg,image/png">
+      <input type="file" id="f2" accept="image/jpeg,image/png" capture="environment">
+      <img id="pv" alt="Selected photo" hidden>
+    </div>
+    <div class="err" id="ferr"></div>
+    <div class="row">
+      <button class="p" id="go">Start recognition</button>
+      <button id="reset" hidden>Start over</button>
+    </div>
+  </section>
+
+  <div id="msg" role="status" aria-live="polite"></div>
+
+  <section id="results" hidden>
+    <div class="grid">
+      <div><div class="zoom"><button id="zo" aria-label="Zoom out">−</button><button id="zi" aria-label="Zoom in">+</button><button id="zr">Fit</button></div><div class="stage"><canvas id="cv"></canvas></div><p class="meta" id="meta"></p></div>
+      <div>
+        <h2 id="count"></h2>
+        <div id="list"></div>
+        <div class="detail" id="detail"></div>
+        <div class="row"><button class="p" id="exp">Download results (.zip)</button></div>
+      </div>
+    </div>
+  </section>
+  </div>
+  <section id="v-cat" hidden><h2>Supported parts</h2><input id="q" type="search" placeholder="Search part number or description" aria-label="Search parts"><p class="meta" id="cn"></p><div id="clist"></div></section>
+  <section id="v-his" hidden><div class="row" style="justify-content:space-between;margin:0 0 10px"><h2 style="margin:0">Recent recognitions (this device)</h2><button id="hclr">Clear history</button></div><div id="hlist"></div></section>
+  <section id="v-dataset" hidden>
+    <h2>E783 source dataset</h2>
+    <p class="meta">Browse the 31-part source dataset and its videos. These part numbers are separate from the current recognition model's 40 classes; selecting a dataset part does not change recognition.</p>
+    <p><a href="/datasets?lang=en" target="_blank" rel="noopener noreferrer">Open dataset in a new tab</a> · <a href="https://jun123-a.github.io/kamero-printer-part-recognition/?lang=en" target="_blank" rel="noopener noreferrer">Public snapshot</a></p>
+    <iframe id="dataset-frame" title="E783 parts and source videos" data-src="/datasets?lang=en" style="width:100%;height:78vh;min-height:480px;border:1px solid #DCD9CE;border-radius:10px"></iframe>
+  </section>
+</main>
+
+<script src="/static/kamero.js?v=dataset-tab-1" defer></script>
+</body>
+</html>
