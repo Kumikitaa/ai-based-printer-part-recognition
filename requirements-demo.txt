@@ -1,0 +1,7 @@
+fastapi==0.136.3
+uvicorn==0.48.0
+sqlalchemy==2.0.50
+pillow==12.2.0
+python-multipart==0.0.30
+ultralytics==8.4.58
+pi-heif==1.4.0

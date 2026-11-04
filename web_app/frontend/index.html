@@ -16,8 +16,8 @@
              Header Section
              ======================================== -->
         <header>
-            <img src="/static/hp_logo.png" alt="HP" onerror="this.remove()">
-            <img src="/static/woosong_logo.png" alt="Woosong University" onerror="this.remove()">
+            <img src="/assets/images/hp_logo.png" alt="HP" onerror="this.remove()">
+            <img src="/assets/images/woosong_logo.png" alt="Woosong University" onerror="this.remove()">
 
             <span class="mark">Kamero</span>
             <span class="tag">Printer part recognition</span>
@@ -30,6 +30,7 @@
         <nav class="tabs" id="tabs">
             <button data-v="rec" class="on">Recognize</button>
             <button data-v="cat">Parts catalogue</button>
+            <button data-v="dataset">E786 dataset</button>
             <button data-v="his">History</button>
         </nav>
 
@@ -49,7 +50,7 @@
 
                 <!-- Recognition Steps -->
                 <ol class="steps" id="steps">
-                    <li>Choose model</li>
+                    <li>Choose recognition scope</li>
                     <li>Upload image</li>
                     <li>Recognize</li>
                     <li>Review parts</li>
@@ -60,10 +61,10 @@
                      Printer Model and Image Upload Section
                      ======================================== -->
                 <section class="card">
-                    <label for="model">Printer model</label>
+                    <label for="model">Recognition scope</label>
 
                     <select id="model">
-                        <option value="">Select a printer model…</option>
+                        <option value="">Loading recognition scopes…</option>
                     </select>
 
                     <div class="err" id="merr"></div>
@@ -151,7 +152,14 @@
                  Parts Catalogue View Section
                  ======================================== -->
             <section id="v-cat" hidden>
-                <h2>Supported parts</h2>
+                <h2>Parts catalogue</h2>
+                <label for="catalog-model">Printer catalogue</label>
+                <select id="catalog-model">
+                    <option value="legacy">Connected model — legacy 40 parts</option>
+                    <option value="E731">E731 — source catalogue</option>
+                    <option value="E786">E786 — source catalogue</option>
+                </select>
+                <p id="catalog-status" role="status">Loading catalogue…</p>
 
                 <input id="q" type="search" placeholder="Search part number or description" aria-label="Search parts">
 
@@ -163,6 +171,11 @@
             <!-- ========================================
                  Recognition History View Section
                  ======================================== -->
+            <section id="v-dataset" hidden>
+                <h2>E786 source dataset</h2>
+                <p>Source catalogue only. E786 recognition is not connected; the legacy model uses a separate 40-part catalogue.</p>
+                <iframe title="E786 parts and source videos" src="/datasets?lang=en" style="width:100%;height:75vh;border:1px solid #ddd"></iframe>
+            </section>
             <section id="v-his" hidden>
                 <div class="row" style="justify-content:space-between;margin:0 0 10px">
                     <h2 style="margin:0">

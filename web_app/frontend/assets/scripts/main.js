@@ -3,23 +3,17 @@
    ======================================== */
 const CFG = {
     API: "",
-    DETECT: "/detect",
+    DETECT: "/api/v1/analyze",
     MODELS: "/api/models",
     HEALTH: "/api/health",
     MAX_BYTES: 10 * 1024 * 1024, // M-IN.2 — confirm the agreed maximum
-    MAX_SIDE: 1280,              // photos are downscaled before upload to protect the 3 s target
+    MAX_SIDE: 1280,              // preview only; upload preserves the original file
     LOW: 0.6,                    // M-DC.6 low-confidence threshold
-    TIMEOUT: 30000,
+    TIMEOUT: 120000,
     TARGET: 3,
     DEMO: new URLSearchParams(location.search).has("demo")
     // open /?demo to try the UI without a backend
 };
-
-const PLACEHOLDER_MODELS = [
-    "Printer model 1 (placeholder)",
-    "Printer model 2 (placeholder)",
-    "Printer model 3 (placeholder)"
-];
 
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -36,49 +30,33 @@ let S = {
     record: ""
 };
 
-const PARTS = [
-    ["5PN77-67001", "5PN77A", "HP LaserJet Fuser 220V Kit"],
-    ["W9078-67001", "W9078MC", "HP LaserJet CYM Managed Imaging Drum"],
-    ["W9077-67001", "W9077MC", "HP LaserJet Black Managed Imaging Drum"],
-    ["6SB85-67001", "6SB85A", "HP LaserJet Toner Collection Unit"],
-    ["JC96-13015A", "JC96-13015A", "Waste toner duct unit"],
-    ["5PN66-67001", "5PN66A", "HP LaserJet Trays 2-x Roller Kit"],
-    ["5PN73-67003", "5PN73A", "HP LaserJet Yellow Developer Unit"],
-    ["933853-011", "933853-011", "Hard disk 500GB SED"],
-    ["5RC00-67001", "5RC00A", "HP LaserJet ADF Maintenance Kit"],
-    ["6CF14-67011", "6CF14-67011", "Main PCA (Formatter)"],
-    ["JC97-05149A", "JC97-05149A", "Laser scanner unit (LSU)"],
-    ["5QK42-60104", "5QK42-60104", "Control panel (10.1 inch)"],
-    ["5PN80-67002", "5PN80A", "T2 transfer assembly"],
-    ["JC44-00150C", "JC44-00150C", "Low Voltage Power Supply (LVPS), 220V"],
-    ["JC44-00240C", "JC44-00240C", "High Voltage Power Supply (HVPS)"],
-    ["5QK39-67002", "5QK39-67002", "HPLJ 300ipm300shtFlw DADFhighspdScnr"],
-    ["5QK08-67014", "5QK08-67014", "ADF Whole Unit Kit, Valiant A3"],
-    ["JC44-00236C", "JC44-00236C", "Fuser drive board (FDB), 220V"],
-    ["5QK08-67011", "5QK08-67011", "SVC-Flat Cable, Faro SICB 50pin"],
-    ["5QK08-67012", "5QK08-67012", "SVC-Flat Cable, Faro SICB 68pin"],
-    ["5QK03-50003", "5QK03-50003", "FLAT CABLE-LSU"],
-    ["JC90-01856A", "JC90-01856A", "Exit unit"],
-    ["JC95-02247A", "JC95-02247A", "Right door assembly"],
-    ["6ER04-61001", "6ER04-61001", "Front cover assembly"],
-    ["8GS05-60128", "8GS05-60128", "Registration unit assembly"],
-    ["0604-001381", "0604-001381", "Registration sensor"],
-    ["0604-001490", "0604-001490", "Feed 2 sensor"],
-    ["JC93-01850A", "JC93-01850A", "Fuser, Exit drive assembly"],
-    ["JC31-00123C", "JC31-00123C", "Drum, ITB motor"],
-    ["JC93-01659A", "JC93-01659A", "Reservoir drive motor"],
-    ["3SJ00-60110", "None", "Tray 3 empty sensor"],
-    ["JC93-00336A", "None", "Duplex 1 motor"],
-    ["SS216-80501", "None", "Toner dispense motor"],
-    ["JC31-00078A", "None", "CPR shutter motor"],
-    ["JC31-00198A", "None", "LVPS fan"],
-    ["JC31-00154A", "None", "FDB fan"],
-    ["JC93-01019A", "None", "LSU fan assembly"],
-    ["JC93-01467A", "None", "Right door switch assembly"],
-    ["JC93-00466A", "None", "Front door switch assembly"],
-    ["5QJ90-40002", "None", "Outer environment sensor assembly"]
-];
-// [SVC part no., Mfg. part no., description] from the 40-part list
+const PARTS = []; // Server catalogue; never infer model labels from dataset part numbers.
+let working = false;
+let recognitionReady = false;
+let catalogueRequest = 0;
+
+async function loadCatalogue() {
+    const request = ++catalogueRequest;
+    const printer = $("catalog-model").value;
+    $("catalog-status").textContent = "Loading catalogue…";
+    try {
+        const response = await fetch("/api/parts?printer_model=" + encodeURIComponent(printer));
+        if (!response.ok) throw new Error("Could not load the parts catalogue.");
+        const data = await response.json();
+        if (request !== catalogueRequest) return;
+        PARTS.splice(0, PARTS.length, ...data.parts.map(p => [p.part_number, "", p.description]));
+        renderCat();
+        $("catalog-status").textContent = printer === "legacy"
+            ? "Reference catalogue for the connected legacy model."
+            : printer + " source parts. Catalogue availability does not mean all parts are recognized by the connected model.";
+    } catch (error) {
+        if (request !== catalogueRequest) return;
+        PARTS.splice(0); renderCat();
+        $("catalog-status").textContent = error.message;
+    }
+}
+$("catalog-model").addEventListener("change", loadCatalogue);
+
 
 
 /* ========================================
@@ -91,11 +69,14 @@ function step(n) {
 }
 
 function sync() {
-    step(
-        !$("results").hidden ? 4 :
-        S.file && $("model").value ? 3 :
-        $("model").value ? 2 : 1
-    );
+    const hasModel = Boolean($("model").value);
+    const ready = hasModel && Boolean(S.file) && recognitionReady;
+    $("go").disabled = working || !ready;
+
+    if (!$("results").hidden) step(4);
+    else if (ready) step(3);
+    else if (hasModel) step(2);
+    else step(1);
 }
 
 function banner(kind, text) {
@@ -108,7 +89,9 @@ function banner(kind, text) {
 }
 
 function busy(on) {
-    $("go").disabled = on;
+    working = on;
+    ["model", "browse", "shoot", "reset", "f1", "f2"].forEach(id => $(id).disabled = on);
+    sync();
     $("go").textContent = on ? "Analyzing…" : "Start recognition";
 }
 
@@ -127,27 +110,27 @@ function loadImg(src) {
    Init: models, server status, demo flag
    ======================================== */
 (async () => {
-    let m = PLACEHOLDER_MODELS;
-
-    if (!CFG.DEMO) {
-        try {
-            const r = await fetch(CFG.API + CFG.MODELS);
-
-            if (r.ok) {
-                const j = await r.json();
-                const a = Array.isArray(j) ? j : j.models;
-
-                if (a && a.length) m = a;
-            }
-        } catch {}
+    $("go").disabled = true;
+    try {
+        await loadCatalogue();
+        const r = await fetch(CFG.API + CFG.MODELS);
+        if (!r.ok) throw new Error("Could not load recognition scopes.");
+        const data = await r.json();
+        const scopes = CFG.DEMO ? ["Simulated demo (not a trained E786 model)"] : data.models;
+        $("model").replaceChildren();
+        scopes.forEach(x => $("model").append(new Option(x, x)));
+        recognitionReady = scopes.length > 0;
+        if (!recognitionReady) {
+            $("model").append(new Option("Recognition weights not installed", ""));
+            banner("info", data.message || "Catalogue browsing is available. Recognition is unavailable.");
+        } else {
+            banner("info", CFG.DEMO ? "Simulated results only; no AI model is used." : data.message);
+        }
+        busy(false);
+        sync();
+    } catch (e) {
+        banner("err", e.message + " Check the backend and refresh.");
     }
-
-    m.forEach(x => {
-        const o = document.createElement("option");
-
-        o.value = o.textContent = x;
-        $("model").append(o);
-    });
 })();
 
 if (CFG.DEMO) {
@@ -163,6 +146,7 @@ if (CFG.DEMO) {
 }
 
 $("model").addEventListener("change", () => {
+    $("reset").onclick();
     $("merr").textContent = "";
     sync();
 });
@@ -224,7 +208,12 @@ async function prepare(file) {
     };
 }
 
+let validationRequest = 0;
+
 async function setFile(f) {
+    if (working) return;
+    $("reset").onclick();
+    const request = validationRequest;
     $("ferr").textContent = "";
 
     if (!["image/jpeg", "image/png"].includes(f.type)) {
@@ -241,10 +230,22 @@ async function setFile(f) {
     }
 
     try {
-        S.prep = await prepare(f);
-    } catch {
-        $("ferr").textContent =
-            "This file could not be read as an image.";
+        banner("info", "Checking image…");
+        if (!CFG.DEMO) {
+            const form = new FormData();
+            form.append("file", f);
+            form.append("printer_model", $("model").value);
+            const response = await fetch("/api/v1/validate", {method: "POST", body: form});
+            if (!response.ok) throw new Error((await response.json()).detail);
+        }
+        const preview = await prepare(f);
+        if (request !== validationRequest) return;
+        S.prep = preview;
+        banner("info", "Ready for recognition.");
+    } catch (error) {
+        if (request !== validationRequest) return;
+        $("msg").replaceChildren();
+        $("ferr").textContent = error.message || "The image could not be validated.";
         return;
     }
 
@@ -306,42 +307,6 @@ function fromJson(d) {
     };
 }
 
-async function fromHPSubPick(blob) {
-    // /detect returned a JPEG; boxes and part info come from separate calls
-    const bx = (
-        await (await fetch(CFG.API + "/boxes")).json()
-    ).boxes || [];
-
-    const parts = await Promise.all(
-        bx.map(async x => {
-            let i = {};
-
-            try {
-                i = await (
-                    await fetch(
-                        CFG.API + "/api/part-info/" +
-                        encodeURIComponent(x.class_name)
-                    )
-                ).json();
-            } catch {}
-
-            return {
-                cls: x.class_name,
-                num: i.part_number || x.class_name,
-                desc: i.name || i.description || "",
-                compat: i.compatibility,
-                conf: x.confidence,
-                box: box(x)
-            };
-        })
-    );
-
-    return {
-        parts,
-        serverImage: URL.createObjectURL(blob)
-    };
-}
-
 function demo() {
     return {
         version: "demo",
@@ -377,15 +342,10 @@ async function callApi(blob, name, model) {
         return demo();
     }
 
-    const fd = new FormData();
+    const form = new FormData();
 
-    fd.append(
-        "file",
-        blob,
-        name.replace(/\.\w+$/, "") + ".jpg"
-    );
-
-    fd.append("printer_model", model);
+    form.append("file", blob, name);
+    form.append("printer_model", model);
 
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), CFG.TIMEOUT);
@@ -395,7 +355,7 @@ async function callApi(blob, name, model) {
     try {
         res = await fetch(CFG.API + CFG.DETECT, {
             method: "POST",
-            body: fd,
+            body: form,
             signal: ctl.signal
         });
     } catch (e) {
@@ -426,9 +386,8 @@ async function callApi(blob, name, model) {
         );
     }
 
-    return (res.headers.get("content-type") || "").startsWith("image/")
-        ? fromHPSubPick(await res.blob())
-        : fromJson(await res.json());
+    const prediction = await res.json();
+    return fromJson(prediction);
 }
 
 
@@ -436,12 +395,13 @@ async function callApi(blob, name, model) {
    Run
    ======================================== */
 $("go").onclick = async () => {
+    if (working || !recognitionReady) return;
     $("msg").replaceChildren();
     $("results").hidden = true;
 
     if (!$("model").value) {
         $("merr").textContent =
-            "Please choose a printer model first.";
+            "Please choose an available recognition scope first.";
 
         $("model").focus();
         return;
@@ -460,7 +420,7 @@ $("go").onclick = async () => {
 
     try {
         const r = await callApi(
-            S.prep.blob,
+            S.file,
             S.file.name,
             $("model").value
         );
@@ -877,6 +837,8 @@ function makeZip(files) {
    Reset
    ======================================== */
 $("reset").onclick = () => {
+    validationRequest++;
+    URL.revokeObjectURL($("pv").src);
     S.file = S.prep = null;
     S.parts = [];
 
@@ -906,7 +868,7 @@ document.querySelectorAll("#tabs button").forEach(b => {
             x.classList.toggle("on", x === b);
         });
 
-        ["rec", "cat", "his"].forEach(v => {
+        ["rec", "cat", "dataset", "his"].forEach(v => {
             $("v-" + v).hidden = v !== b.dataset.v;
         });
 
@@ -932,7 +894,7 @@ function renderCat() {
 
         r.className = "crow";
         b.textContent = x[0];
-        s.textContent = x[2] + " · Mfg. " + x[1];
+        s.textContent = x[2] + (x[1] ? " · Mfg. " + x[1] : "");
 
         r.append(b, s);
         L.append(r);
