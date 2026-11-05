@@ -525,7 +525,7 @@ button:disabled {
     margin-bottom: 7px;
     background: #fff;
     align-items: center;
-    font-size: 0.88rem;
+    font-size: 1rem;
 }
 
 .crow {
@@ -568,4 +568,29 @@ button:disabled {
 
 .history-heading {
     margin: 0;
+}
+
+/* Database catalogue: retain the existing colours and typography. */
+.catalogue-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+}
+.catalogue-filters > div:first-child { flex: 2 1 260px; }
+.catalogue-filters > div:nth-child(2) { flex: 1 1 200px; }
+.catalogue-filters label { display: block; margin-bottom: 5px; }
+.catalogue-filters input, .catalogue-filters select { width: 100%; min-width: 0; }
+.catalogue-filters #q { margin: 0; }
+.catalogue-part { padding: 16px; background: var(--card); overflow-wrap: anywhere; }
+.catalogue-part h3 { margin: 0 0 0px; font-size: 2rem; }
+.catalogue-part p { margin: 0 0 10px; color: var(--soft); }
+.catalogue-models { display: flex; flex-wrap: wrap; gap: 8px; font-size: .85rem; color: var(--soft); }
+.catalogue-badge { background: #e9f3fa; color: #005b9d; padding: 3px 9px; border-radius: 5px; }
+.catalogue-empty { padding: 24px 16px; border: 1px dashed var(--line); border-radius: 8px; }
+.catalogue-pagination { justify-content: center; margin-top: 16px; }
+#catalogue-error button { margin-left: 10px; }
+@media (max-width: 480px) {
+    .catalogue-filters > div { flex-basis: 100%; }
+    .catalogue-filters > button { width: 100%; }
 }

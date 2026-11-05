@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+sqlalchemy[asyncio]
+aiosqlite
+pandas
+openpyxl
+ultralytics
+python-multipart
+Pillow

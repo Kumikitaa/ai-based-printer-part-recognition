@@ -7,7 +7,7 @@
 
         <title>Kamero: Printer Part Recognition System</title>
 
-        <link rel="stylesheet" href="./assets/styles/main.css">
+        <link rel="stylesheet" href="assets/styles/main.css">
     </head>
 
     <body>
@@ -16,8 +16,8 @@
              Header Section
              ======================================== -->
         <header>
-            <img src="/static/hp_logo.png" alt="HP" onerror="this.remove()">
-            <img src="/static/woosong_logo.png" alt="Woosong University" onerror="this.remove()">
+            <img src="assets/static/hp_logo.jpg" alt="HP logo">
+            <img src="assets/static/woosong_logo.jpg" alt="Woosong University logo">
 
             <span class="mark">Kamero</span>
             <span class="tag">Printer part recognition</span>
@@ -44,7 +44,7 @@
                  ======================================== -->
             <div id="v-rec">
                 <div id="demo" hidden>
-                    Demo mode - results are simulated and no server is called.
+                    Recognition demo mode - recognition results are simulated. The catalogue uses the database.
                 </div>
 
                 <!-- Recognition Steps -->
@@ -152,12 +152,29 @@
                  ======================================== -->
             <section id="v-cat" hidden>
                 <h2>Supported parts</h2>
-
-                <input id="q" type="search" placeholder="Search part number or description" aria-label="Search parts">
-
-                <p class="meta" id="cn"></p>
-
-                <div id="clist"></div>
+                <p class="meta">Browse catalogue records and printer compatibility.</p>
+                <div class="catalogue-filters">
+                    <div>
+                        <label for="q">Search parts</label>
+                        <input id="q" type="search" maxlength="200" placeholder="Part number or description">
+                    </div>
+                    <div>
+                        <label for="catalogue-model">Printer model</label>
+                        <select id="catalogue-model"><option value="">All printer models</option></select>
+                    </div>
+                    <button id="catalogue-clear" type="button">Clear filters</button>
+                </div>
+                <p class="meta" id="cn" role="status" aria-live="polite"></p>
+                <div id="catalogue-error" class="banner err" role="alert" hidden>
+                    <span id="catalogue-error-text"></span>
+                    <button id="catalogue-retry" type="button">Retry</button>
+                </div>
+                <div id="clist" aria-label="Catalogue results" aria-busy="false"></div>
+                <div class="row catalogue-pagination" id="catalogue-pagination" hidden>
+                    <button id="catalogue-prev" type="button">Previous</button>
+                    <span id="catalogue-page" class="meta"></span>
+                    <button id="catalogue-next" type="button">Next</button>
+                </div>
             </section>
 
             <!-- ========================================
@@ -181,6 +198,7 @@
         <!-- ========================================
              JavaScript Linking
              ======================================== -->
-        <script src="./assets/scripts/main.js"></script>
+        <script src="assets/scripts/catalogue.js"></script>
+        <script src="assets/scripts/main.js"></script>
     </body>
 </html>

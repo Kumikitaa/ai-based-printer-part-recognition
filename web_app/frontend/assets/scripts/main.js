@@ -4,7 +4,7 @@
 const CFG = {
     API: "",
     DETECT: "/detect",
-    MODELS: "/api/models",
+    MODELS: "/api/recognition/models",
     HEALTH: "/api/health",
     MAX_BYTES: 10 * 1024 * 1024, // M-IN.2 — confirm the agreed maximum
     MAX_SIDE: 1280,              // photos are downscaled before upload to protect the 3 s target
@@ -14,12 +14,6 @@ const CFG = {
     DEMO: new URLSearchParams(location.search).has("demo")
     // open /?demo to try the UI without a backend
 };
-
-const PLACEHOLDER_MODELS = [
-    "Printer model 1 (placeholder)",
-    "Printer model 2 (placeholder)",
-    "Printer model 3 (placeholder)"
-];
 
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -35,50 +29,6 @@ let S = {
     version: "",
     record: ""
 };
-
-const PARTS = [
-    ["5PN77-67001", "5PN77A", "HP LaserJet Fuser 220V Kit"],
-    ["W9078-67001", "W9078MC", "HP LaserJet CYM Managed Imaging Drum"],
-    ["W9077-67001", "W9077MC", "HP LaserJet Black Managed Imaging Drum"],
-    ["6SB85-67001", "6SB85A", "HP LaserJet Toner Collection Unit"],
-    ["JC96-13015A", "JC96-13015A", "Waste toner duct unit"],
-    ["5PN66-67001", "5PN66A", "HP LaserJet Trays 2-x Roller Kit"],
-    ["5PN73-67003", "5PN73A", "HP LaserJet Yellow Developer Unit"],
-    ["933853-011", "933853-011", "Hard disk 500GB SED"],
-    ["5RC00-67001", "5RC00A", "HP LaserJet ADF Maintenance Kit"],
-    ["6CF14-67011", "6CF14-67011", "Main PCA (Formatter)"],
-    ["JC97-05149A", "JC97-05149A", "Laser scanner unit (LSU)"],
-    ["5QK42-60104", "5QK42-60104", "Control panel (10.1 inch)"],
-    ["5PN80-67002", "5PN80A", "T2 transfer assembly"],
-    ["JC44-00150C", "JC44-00150C", "Low Voltage Power Supply (LVPS), 220V"],
-    ["JC44-00240C", "JC44-00240C", "High Voltage Power Supply (HVPS)"],
-    ["5QK39-67002", "5QK39-67002", "HPLJ 300ipm300shtFlw DADFhighspdScnr"],
-    ["5QK08-67014", "5QK08-67014", "ADF Whole Unit Kit, Valiant A3"],
-    ["JC44-00236C", "JC44-00236C", "Fuser drive board (FDB), 220V"],
-    ["5QK08-67011", "5QK08-67011", "SVC-Flat Cable, Faro SICB 50pin"],
-    ["5QK08-67012", "5QK08-67012", "SVC-Flat Cable, Faro SICB 68pin"],
-    ["5QK03-50003", "5QK03-50003", "FLAT CABLE-LSU"],
-    ["JC90-01856A", "JC90-01856A", "Exit unit"],
-    ["JC95-02247A", "JC95-02247A", "Right door assembly"],
-    ["6ER04-61001", "6ER04-61001", "Front cover assembly"],
-    ["8GS05-60128", "8GS05-60128", "Registration unit assembly"],
-    ["0604-001381", "0604-001381", "Registration sensor"],
-    ["0604-001490", "0604-001490", "Feed 2 sensor"],
-    ["JC93-01850A", "JC93-01850A", "Fuser, Exit drive assembly"],
-    ["JC31-00123C", "JC31-00123C", "Drum, ITB motor"],
-    ["JC93-01659A", "JC93-01659A", "Reservoir drive motor"],
-    ["3SJ00-60110", "None", "Tray 3 empty sensor"],
-    ["JC93-00336A", "None", "Duplex 1 motor"],
-    ["SS216-80501", "None", "Toner dispense motor"],
-    ["JC31-00078A", "None", "CPR shutter motor"],
-    ["JC31-00198A", "None", "LVPS fan"],
-    ["JC31-00154A", "None", "FDB fan"],
-    ["JC93-01019A", "None", "LSU fan assembly"],
-    ["JC93-01467A", "None", "Right door switch assembly"],
-    ["JC93-00466A", "None", "Front door switch assembly"],
-    ["5QJ90-40002", "None", "Outer environment sensor assembly"]
-];
-// [SVC part no., Mfg. part no., description] from the 40-part list
 
 
 /* ========================================
@@ -109,7 +59,7 @@ function banner(kind, text) {
 
 function busy(on) {
     $("go").disabled = on;
-    $("go").textContent = on ? "Analyzing…" : "Start recognition";
+    $("go").textContent = on ? "Analyzing..." : "Start recognition";
 }
 
 function loadImg(src) {
@@ -127,7 +77,7 @@ function loadImg(src) {
    Init: models, server status, demo flag
    ======================================== */
 (async () => {
-    let m = PLACEHOLDER_MODELS;
+    let m = CFG.DEMO ? ["E877"] : [];
 
     if (!CFG.DEMO) {
         try {
@@ -137,9 +87,13 @@ function loadImg(src) {
                 const j = await r.json();
                 const a = Array.isArray(j) ? j : j.models;
 
-                if (a && a.length) m = a;
+                if (Array.isArray(a)) m = a;
             }
         } catch {}
+    }
+
+    if (!CFG.DEMO && !m.length) {
+        $("merr").textContent = "No printer models loaded. Check your database and API connection, then reload.";
     }
 
     m.forEach(x => {
@@ -155,7 +109,8 @@ if (CFG.DEMO) {
 } else {
     fetch(CFG.API + CFG.HEALTH)
         .then(r => {
-            if (r.ok) $("dot").className = "dot on";
+            $("dot").className = r.ok ? "dot on" : "dot off";
+            $("dot").title = r.ok ? "Catalogue API connected" : "Catalogue API unavailable";
         })
         .catch(() => {
             $("dot").className = "dot off";
@@ -274,7 +229,6 @@ function box(b) {
         return [b.x_pct, b.y_pct, b.w_pct, b.h_pct];
     }
 
-    // HPSubPick /boxes
     return null;
 }
 
@@ -307,7 +261,6 @@ function fromJson(d) {
 }
 
 async function fromHPSubPick(blob) {
-    // /detect returned a JPEG; boxes and part info come from separate calls
     const bx = (
         await (await fetch(CFG.API + "/boxes")).json()
     ).boxes || [];
@@ -485,16 +438,7 @@ async function show(r) {
         .filter(p => typeof p.conf === "number")
         .sort((a, b) => b.conf - a.conf);
 
-    S.parts.forEach(p => {
-        const x = PARTS.find(y => y[0] === p.num);
-
-        if (x) {
-            p.desc = p.desc || x[2];
-            p.mfg = x[1];
-        }
-    });
-
-    // fill specs from the catalogue when the backend sends none
+    // Part numbers, descriptions and compatibility come from the detection API.
     if (!S.parts.length) {
         banner(
             "info",
@@ -508,7 +452,6 @@ async function show(r) {
         ? await loadImg(r.serverImage)
         : S.prep.canvas;
 
-    // draw boxes ourselves when we have coordinates
     S.model = $("model").value;
     S.version = r.version || "";
     S.record = r.record || "";
@@ -676,7 +619,6 @@ function render() {
 }
 
 $("cv").addEventListener("click", e => {
-    // click a box to select it; the smallest box under the cursor wins
     const r = e.target.getBoundingClientRect();
 
     const x = (e.clientX - r.left) / r.width;
@@ -777,7 +719,7 @@ $("exp").onclick = async () => {
     const a = document.createElement("a");
 
     a.href = URL.createObjectURL(z);
-    a.download = "kamero-results.zip";
+    a.download = "detection_results.zip";
 
     document.body.append(a);
 
@@ -788,7 +730,6 @@ $("exp").onclick = async () => {
 };
 
 function makeZip(files) {
-    // minimal uncompressed ZIP writer, no libraries needed
     const T = new Uint32Array(256);
 
     for (let n = 0; n < 256; n++) {
@@ -910,39 +851,10 @@ document.querySelectorAll("#tabs button").forEach(b => {
             $("v-" + v).hidden = v !== b.dataset.v;
         });
 
-        if (b.dataset.v === "cat") renderCat();
+        if (b.dataset.v === "cat") window.Catalogue.load();
         if (b.dataset.v === "his") renderHistory();
     };
 });
-
-function renderCat() {
-    const q = $("q").value.trim().toLowerCase();
-    const L = $("clist");
-
-    const hit = PARTS.filter(
-        x => !q || x.join(" ").toLowerCase().includes(q)
-    );
-
-    L.replaceChildren();
-
-    hit.forEach(x => {
-        const r = document.createElement("div");
-        const b = document.createElement("b");
-        const s = document.createElement("small");
-
-        r.className = "crow";
-        b.textContent = x[0];
-        s.textContent = x[2] + " · Mfg. " + x[1];
-
-        r.append(b, s);
-        L.append(r);
-    });
-
-    $("cn").textContent =
-        hit.length + " of " + PARTS.length + " parts";
-}
-
-$("q").oninput = renderCat;
 
 const HK = "kamero.history.v1";
 
@@ -955,7 +867,6 @@ function hist() {
 }
 
 function saveHistory() {
-    // thumbnail + results only, newest 20, stored in this browser
     const cv = $("cv");
     const k = 160 / Math.max(cv.width, cv.height);
     const c = document.createElement("canvas");
@@ -1044,8 +955,54 @@ $("hclr").onclick = () => {
     renderHistory();
 };
 
-function feedbackUI(d, p) {
-    // lets the user flag a wrong detection; the choice is included in the export for retraining review
+let feedbackPartsPromise;
+
+function loadFeedbackParts() {
+    if (CFG.DEMO) {
+        return Promise.resolve(demo().parts.map(p => ({
+            serial_number: p.num,
+            part_desc: p.desc
+        })));
+    }
+
+    if (!feedbackPartsPromise) {
+        feedbackPartsPromise = (async () => {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), CFG.TIMEOUT);
+            const parts = [];
+
+            try {
+                for (let page = 1; ; page++) {
+                    const params = new URLSearchParams({ page, page_size: 100 });
+                    const response = await fetch(
+                        CFG.API + "/api/catalogue/parts?" + params,
+                        { signal: controller.signal, cache: "no-store" }
+                    );
+
+                    if (!response.ok) throw new Error("Catalogue request failed.");
+
+                    const data = await response.json();
+                    if (!Array.isArray(data.items) || !Number.isInteger(data.total) || data.total < 0) {
+                        throw new Error("Invalid catalogue response.");
+                    }
+
+                    parts.push(...data.items);
+                    if (parts.length >= data.total) return parts;
+                    if (!data.items.length) throw new Error("Incomplete catalogue response.");
+                }
+            } finally {
+                clearTimeout(timeout);
+            }
+        })().catch(error => {
+            feedbackPartsPromise = undefined;
+            throw error;
+        });
+    }
+
+    return feedbackPartsPromise;
+}
+
+async function feedbackUI(d, p) {
     const w = document.createElement("div");
     const sel = document.createElement("select");
     const note = document.createElement("small");
@@ -1054,37 +1011,55 @@ function feedbackUI(d, p) {
 
     sel.append(
         new Option(
-            "Flag as incorrect — choose the correct part…",
+            "Flag as incorrect (choose the correct part)",
             ""
         )
     );
 
-    PARTS.forEach(x => {
-        sel.append(
-            new Option(x[0] + " — " + x[2], x[0])
-        );
-    });
-
-    sel.append(
-        new Option("Not a printer part / unknown", "none")
-    );
+    const unknown = new Option("Not a printer part / unknown", "none");
+    sel.append(unknown);
 
     sel.value = p.fb || "";
 
-    note.textContent = p.fb
-        ? "Saved in the export for review."
-        : "";
+    let choicesFailed = false;
+    const updateNote = () => {
+        note.textContent = p.fb
+            ? "Saved in the export for review."
+            : choicesFailed
+                ? "Part choices could not be loaded. You can still mark this result as unknown."
+                : "";
+    };
+    updateNote();
 
     sel.onchange = () => {
         p.fb = sel.value || undefined;
 
-        note.textContent = p.fb
-            ? "Saved in the export for review."
-            : "";
+        updateNote();
     };
 
     w.append(sel, note);
     d.append(w);
+
+    sel.setAttribute("aria-busy", "true");
+    try {
+        const parts = await loadFeedbackParts();
+        const seen = new Set();
+
+        for (const part of parts) {
+            if (seen.has(part.serial_number)) continue;
+            seen.add(part.serial_number);
+            sel.insertBefore(
+                new Option(part.serial_number + " | " + part.part_desc, part.serial_number),
+                unknown
+            );
+        }
+        sel.value = p.fb || "";
+    } catch {
+        choicesFailed = true;
+        updateNote();
+    } finally {
+        sel.removeAttribute("aria-busy");
+    }
 }
 
 let Z = 1;
