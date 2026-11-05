@@ -282,6 +282,7 @@ function box(b) {
 function fromJson(d) {
     const parts = Array.isArray(d.parts)
         ? d.parts.map(p => ({
+            index: p.result_index,
             cls: p.class_name || p.cls,
             num: p.part_number || p.cls,
             desc: p.description || p.name || "",
@@ -526,7 +527,7 @@ async function show(r) {
 
     zoom(1);
     select(0);
-    saveHistory();
+
 
     $("results").scrollIntoView({
         behavior: "smooth",
@@ -673,165 +674,13 @@ window.addEventListener("resize", () => {
 /* ========================================
    Export package: annotated.png + results.json + results.csv (M-EX.1-3)
    ======================================== */
-$("exp").onclick = async () => {
-    const enc = new TextEncoder();
-
-    const png = new Uint8Array(
-        await (
-            await new Promise(r => $("cv").toBlob(r, "image/png"))
-        ).arrayBuffer()
-    );
-
-    const rows = S.parts.map(p => ({
-        part_number: p.num,
-        class: p.cls,
-        description: p.desc,
-        confidence: +p.conf.toFixed(4),
-        low_confidence: p.conf < CFG.LOW,
-        mfg_part_number: p.mfg || null,
-        user_feedback: p.fb || null,
-        bbox_norm_xywh: p.box
-            ? p.box.map(v => +v.toFixed(4))
-            : null
-    }));
-
-    const q = v =>
-        '"' + String(v ?? "").replace(/"/g, '""') + '"';
-
-    const csv =
-        "part_number,class,description,confidence,low_confidence,printer_model\n" +
-        rows.map(r => [
-            q(r.part_number),
-            q(r.class),
-            q(r.description),
-            r.confidence,
-            r.low_confidence,
-            q(S.model)
-        ].join(",")).join("\n");
-
-    const meta = {
-        created: new Date().toISOString(),
-        printer_model: S.model,
-        source_file: S.file.name,
-        model_version: S.version || null,
-        record_id: S.record || null,
-        response_seconds: +S.secs.toFixed(2),
-        parts: rows
-    };
-
-    const z = makeZip([
-        {
-            name: "annotated.png",
-            data: png
-        },
-        {
-            name: "results.json",
-            data: enc.encode(JSON.stringify(meta, null, 2))
-        },
-        {
-            name: "results.csv",
-            data: enc.encode("\ufeff" + csv)
-        }
-    ]);
-
-    const a = document.createElement("a");
-
-    a.href = URL.createObjectURL(z);
-    a.download = "kamero-results.zip";
-
-    document.body.append(a);
-
-    a.click();
-    a.remove();
-
-    step(5);
-};
-
-function makeZip(files) {
-    // minimal uncompressed ZIP writer, no libraries needed
-    const T = new Uint32Array(256);
-
-    for (let n = 0; n < 256; n++) {
-        let c = n;
-
-        for (let k = 0; k < 8; k++) {
-            c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
-        }
-
-        T[n] = c >>> 0;
+$("exp").onclick = () => {
+    if (!S.record) {
+        banner("info", "Run recognition on the server before downloading.");
+        return;
     }
-
-    const crc = d => {
-        let c = 0xFFFFFFFF;
-
-        for (let i = 0; i < d.length; i++) {
-            c = T[(c ^ d[i]) & 255] ^ (c >>> 8);
-        }
-
-        return (c ^ 0xFFFFFFFF) >>> 0;
-    };
-
-    const enc = new TextEncoder();
-    const loc = [];
-    const cen = [];
-
-    let off = 0;
-
-    files.forEach(f => {
-        const nm = enc.encode(f.name);
-        const sz = f.data.length;
-        const c = crc(f.data);
-
-        const lh = new DataView(new ArrayBuffer(30));
-        const ch = new DataView(new ArrayBuffer(46));
-
-        lh.setUint32(0, 0x04034b50, true);
-        lh.setUint16(4, 20, true);
-        lh.setUint16(12, 33, true);
-        lh.setUint32(14, c, true);
-        lh.setUint32(18, sz, true);
-        lh.setUint32(22, sz, true);
-        lh.setUint16(26, nm.length, true);
-
-        ch.setUint32(0, 0x02014b50, true);
-        ch.setUint16(4, 20, true);
-        ch.setUint16(6, 20, true);
-        ch.setUint16(14, 33, true);
-        ch.setUint32(16, c, true);
-        ch.setUint32(20, sz, true);
-        ch.setUint32(24, sz, true);
-        ch.setUint16(28, nm.length, true);
-        ch.setUint32(42, off, true);
-
-        loc.push(
-            new Uint8Array(lh.buffer),
-            nm,
-            f.data
-        );
-
-        cen.push(
-            new Uint8Array(ch.buffer),
-            nm
-        );
-
-        off += 30 + nm.length + sz;
-    });
-
-    const cs = cen.reduce((s, a) => s + a.length, 0);
-    const e = new DataView(new ArrayBuffer(22));
-
-    e.setUint32(0, 0x06054b50, true);
-    e.setUint16(8, files.length, true);
-    e.setUint16(10, files.length, true);
-    e.setUint32(12, cs, true);
-    e.setUint32(16, off, true);
-
-    return new Blob(
-        [...loc, ...cen, new Uint8Array(e.buffer)],
-        { type: "application/zip" }
-    );
-}
-
+    window.location.href = "/api/results/" + S.record + "/export";
+};
 
 /* ========================================
    Reset
@@ -906,104 +755,39 @@ function renderCat() {
 
 $("q").oninput = renderCat;
 
-const HK = "kamero.history.v1";
-
-function hist() {
+async function renderHistory() {
+    const list = $("hlist");
+    list.textContent = "Loading history…";
     try {
-        return JSON.parse(localStorage.getItem(HK)) || [];
-    } catch {
-        return [];
+        const response = await fetch("/api/results");
+        if (!response.ok) throw new Error("Could not load history.");
+        const records = await response.json();
+        list.replaceChildren();
+        if (!records.length) list.textContent = "No saved recognitions.";
+        for (const record of records) {
+            const row = document.createElement("div");
+            row.className = "hrow";
+            const text = document.createElement("span");
+            const names = record.parts.map(part => part.part_number).join(", ");
+            text.textContent = record.created + " · " + record.source_file + " · " + (names || "No part detected");
+            const download = document.createElement("a");
+            download.href = "/api/results/" + record.id + "/export";
+            download.textContent = "Download";
+            row.append(text, download);
+            list.append(row);
+        }
+    } catch (error) {
+        list.textContent = error.message;
     }
 }
 
-function saveHistory() {
-    // thumbnail + results only, newest 20, stored in this browser
-    const cv = $("cv");
-    const k = 160 / Math.max(cv.width, cv.height);
-    const c = document.createElement("canvas");
-
-    c.width = Math.round(cv.width * k);
-    c.height = Math.round(cv.height * k);
-
-    c.getContext("2d").drawImage(
-        cv, 0, 0, c.width, c.height
-    );
-
-    const e = {
-        t: Date.now(),
-        model: S.model,
-        file: S.file.name,
-        secs: +S.secs.toFixed(1),
-        img: c.toDataURL("image/jpeg", 0.6),
-        parts: S.parts.map(p => [
-            p.num,
-            p.desc,
-            +p.conf.toFixed(3)
-        ])
-    };
-
-    try {
-        localStorage.setItem(
-            HK,
-            JSON.stringify([e, ...hist()].slice(0, 20))
-        );
-    } catch {}
-}
-
-function renderHistory() {
-    const L = $("hlist");
-    const h = hist();
-
-    L.replaceChildren();
-
-    if (!h.length) {
-        const p = document.createElement("p");
-
-        p.className = "meta";
-        p.textContent =
-            "No recognitions yet. Results from this device will appear here.";
-
-        L.append(p);
+$("hclr").onclick = async () => {
+    const response = await fetch("/api/results", {method: "DELETE"});
+    if (!response.ok) {
+        banner("err", "Could not clear history.");
         return;
     }
-
-    h.forEach(e => {
-        const r = document.createElement("div");
-        const i = new Image();
-        const t = document.createElement("div");
-        const b = document.createElement("b");
-        const s = document.createElement("small");
-        const u = document.createElement("small");
-
-        r.className = "hrow";
-
-        i.src = e.img;
-        i.alt = "";
-
-        b.textContent = e.file;
-
-        s.textContent =
-            new Date(e.t).toLocaleString() + " · " +
-            e.model + " · " +
-            e.secs + " s";
-
-        u.textContent = e.parts
-            .map(p => p[0] + " (" + Math.round(p[2] * 100) + "%)")
-            .join(", ");
-
-        t.append(b, s, u);
-        r.append(i, t);
-
-        L.append(r);
-    });
-}
-
-$("hclr").onclick = () => {
-    try {
-        localStorage.removeItem(HK);
-    } catch {}
-
-    renderHistory();
+    await renderHistory();
 };
 
 function feedbackUI(d, p) {
@@ -1034,15 +818,28 @@ function feedbackUI(d, p) {
     sel.value = p.fb || "";
 
     note.textContent = p.fb
-        ? "Saved in the export for review."
+        ? "Saved to the database."
         : "";
 
-    sel.onchange = () => {
-        p.fb = sel.value || undefined;
-
-        note.textContent = p.fb
-            ? "Saved in the export for review."
-            : "";
+    sel.disabled = !S.record;
+    sel.onchange = async () => {
+        sel.disabled = true;
+        note.textContent = "Saving…";
+        try {
+            const response = await fetch("/api/results/" + S.record + "/parts/" + p.index + "/feedback", {
+                method: "PUT",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({value: sel.value})
+            });
+            if (!response.ok) throw new Error("Feedback could not be saved.");
+            p.fb = sel.value;
+            note.textContent = "Saved to the database.";
+        } catch (error) {
+            sel.value = p.fb || "";
+            note.textContent = error.message;
+        } finally {
+            sel.disabled = false;
+        }
     };
 
     w.append(sel, note);

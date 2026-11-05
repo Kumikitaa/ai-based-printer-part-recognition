@@ -21,9 +21,11 @@ from database import (
         SessionLocal, DetectionLog, Part,
     init_db,
 )
+from result_api import router as result_router, RecognitionRecord, owner_key
 from printer_catalog import PrinterPart, seed_printer_catalog
 
 app = FastAPI()
+app.include_router(result_router)
 from dataset_api import router as dataset_router
 app.include_router(dataset_router)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -168,15 +170,12 @@ def validate_upload(file: UploadFile = File(...), printer_model: str = Form(...)
 
 @app.post("/api/v1/analyze")
 @app.post("/detect")
-def detect(file: UploadFile = File(...), printer_model: str = Form(PRINTER_SCOPE), db: Session = Depends(get_db)):
+def detect(file: UploadFile = File(...), printer_model: str = Form(PRINTER_SCOPE), db: Session = Depends(get_db), owner: str = Depends(owner_key)):
     print(f"[Predict] request: {file.filename}")
 
     try:
         image = read_upload(file, printer_model)
         results = run_detection(image)
-
-        if not len(results[0].boxes):
-            return {"parts": [], "printer_model": printer_model, "model_version": os.path.basename(MODEL_DET_PATH)}
 
         plotted_bgr = results[0].plot()
         plotted_rgb = Image.fromarray(plotted_bgr[..., ::-1])
@@ -213,7 +212,7 @@ def detect(file: UploadFile = File(...), printer_model: str = Form(PRINTER_SCOPE
                 description = spec.description if spec else "No matching specification in the selected printer catalogue."
             srl.append(number)
             msg.append(description)
-            parts.append({"class_name": str(result.names.get(int(classes[i]), classes[i])),
+            parts.append({"result_index": i, "class_name": str(result.names.get(int(classes[i]), classes[i])),
                           "class_id": int(classes[i]), "part_number": number,
                           "description": description, "confidence": conf[i],
                           "bbox_norm": bboxes[i], "compatibility": compatibility,
@@ -229,12 +228,20 @@ def detect(file: UploadFile = File(...), printer_model: str = Form(PRINTER_SCOPE
             result=send
         )
         db.add(log)
+        record = RecognitionRecord(
+            owner=owner,
+            image_path=saved_path,
+            payload={"created": datetime.now().isoformat(), "printer_model": printer_model,
+                     "source_file": file.filename, "model_version": os.path.basename(MODEL_DET_PATH),
+                     "parts": parts})
+        db.add(record)
         db.commit()
+        db.refresh(record)
         db.refresh(log)
 
         return {"image": img_str, "conf": conf, "cls": srl, "desc": msg,
                 "parts": parts, "bboxes": bboxes, "bbox_format": "cxcywh_normalized",
-                "record_id": log.id, "model_version": os.path.basename(MODEL_DET_PATH),
+                "record_id": record.id, "model_version": os.path.basename(MODEL_DET_PATH),
                 "printer_model": printer_model}
 
     except HTTPException:
