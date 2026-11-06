@@ -2,19 +2,31 @@ import os
 from datetime import datetime, timezone
 import asyncio
 from typing import List
-from sqlalchemy import String, DateTime, JSON, text, ForeignKey
+from sqlalchemy import String, DateTime, JSON, text, ForeignKey, event
+from pathlib import Path
+import shutil
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 # Create directory where database will reside
-db_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "database")
+SOURCE_DB = Path(__file__).resolve().parent / "database" / "PrinterPartCatalogue.db"
+db_directory = os.environ.get("KAMERO_DATA_DIR", str(Path(__file__).resolve().parent / "runtime"))
 if not os.path.exists(db_directory):
     os.makedirs(db_directory)
 
 # Establish connections
 db_path = os.path.join(db_directory, "PrinterPartCatalogue.db")
+# Work on a runtime copy; never write recognition history into the tracked catalogue.
+if not os.path.exists(db_path) and SOURCE_DB.is_file():
+    shutil.copy2(SOURCE_DB, db_path)
 
 engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}")
+
+@event.listens_for(engine.sync_engine, "connect")
+def enable_foreign_keys(connection, _):
+    cursor = connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 async def check_connection():
     async with engine.connect() as connection:
         await connection.execute(text("SELECT 1"))
@@ -74,6 +86,7 @@ class PartPrediction(Base):
 
 # Initialize database (create tables, assign relationships)
 async def init_db():
+    import result_api  # Register additive ownership and feedback tables.
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
 

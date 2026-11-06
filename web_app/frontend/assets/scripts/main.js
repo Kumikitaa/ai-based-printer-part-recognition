@@ -7,9 +7,9 @@ const CFG = {
     MODELS: "/api/recognition/models",
     HEALTH: "/api/health",
     MAX_BYTES: 10 * 1024 * 1024, // M-IN.2 — confirm the agreed maximum
-    MAX_SIDE: 1280,              // photos are downscaled before upload to protect the 3 s target
+    MAX_SIDE: 1280,              // preview only; upload the original image
     LOW: 0.6,                    // M-DC.6 low-confidence threshold
-    TIMEOUT: 30000,
+    TIMEOUT: 120000,
     TARGET: 3,
     DEMO: new URLSearchParams(location.search).has("demo")
     // open /?demo to try the UI without a backend
@@ -40,7 +40,11 @@ function step(n) {
     });
 }
 
+let working = false;
+let fileRequest = 0;
+
 function sync() {
+    $("go").disabled = working || !S.file || !$("model").value;
     step(
         !$("results").hidden ? 4 :
         S.file && $("model").value ? 3 :
@@ -58,7 +62,9 @@ function banner(kind, text) {
 }
 
 function busy(on) {
-    $("go").disabled = on;
+    working = on;
+    ["model", "browse", "shoot", "reset", "f1", "f2", "hclr"].forEach(id => $(id).disabled = on);
+    sync();
     $("go").textContent = on ? "Analyzing..." : "Start recognition";
 }
 
@@ -180,6 +186,9 @@ async function prepare(file) {
 }
 
 async function setFile(f) {
+    if (working) return;
+    $("reset").onclick();
+    const request = fileRequest;
     $("ferr").textContent = "";
 
     if (!["image/jpeg", "image/png"].includes(f.type)) {
@@ -196,8 +205,11 @@ async function setFile(f) {
     }
 
     try {
-        S.prep = await prepare(f);
+        const preview = await prepare(f);
+        if (request !== fileRequest) return;
+        S.prep = preview;
     } catch {
+        if (request !== fileRequest) return;
         $("ferr").textContent =
             "This file could not be read as an image.";
         return;
@@ -235,6 +247,8 @@ function box(b) {
 function fromJson(d) {
     const parts = Array.isArray(d.parts)
         ? d.parts.map(p => ({
+            id: p.prediction_id,
+            fb: p.user_feedback,
             cls: p.class_name || p.cls,
             num: p.part_number || p.cls,
             desc: p.description || p.name || "",
@@ -256,42 +270,10 @@ function fromJson(d) {
             ? "data:image/jpeg;base64," + d.image
             : null,
         version: d.model_version,
-        record: d.record_id
-    };
-}
-
-async function fromHPSubPick(blob) {
-    const bx = (
-        await (await fetch(CFG.API + "/boxes")).json()
-    ).boxes || [];
-
-    const parts = await Promise.all(
-        bx.map(async x => {
-            let i = {};
-
-            try {
-                i = await (
-                    await fetch(
-                        CFG.API + "/api/part-info/" +
-                        encodeURIComponent(x.class_name)
-                    )
-                ).json();
-            } catch {}
-
-            return {
-                cls: x.class_name,
-                num: i.part_number || x.class_name,
-                desc: i.name || i.description || "",
-                compat: i.compatibility,
-                conf: x.confidence,
-                box: box(x)
-            };
-        })
-    );
-
-    return {
-        parts,
-        serverImage: URL.createObjectURL(blob)
+        record: d.record_id,
+        model: d.printer_model,
+        source: d.source_file,
+        imageUrl: d.image_url
     };
 }
 
@@ -335,7 +317,7 @@ async function callApi(blob, name, model) {
     fd.append(
         "file",
         blob,
-        name.replace(/\.\w+$/, "") + ".jpg"
+        name
     );
 
     fd.append("printer_model", model);
@@ -379,9 +361,7 @@ async function callApi(blob, name, model) {
         );
     }
 
-    return (res.headers.get("content-type") || "").startsWith("image/")
-        ? fromHPSubPick(await res.blob())
-        : fromJson(await res.json());
+    return fromJson(await res.json());
 }
 
 
@@ -389,6 +369,7 @@ async function callApi(blob, name, model) {
    Run
    ======================================== */
 $("go").onclick = async () => {
+    if (working) return;
     $("msg").replaceChildren();
     $("results").hidden = true;
 
@@ -413,7 +394,7 @@ $("go").onclick = async () => {
 
     try {
         const r = await callApi(
-            S.prep.blob,
+            S.file,
             S.file.name,
             $("model").value
         );
@@ -438,24 +419,14 @@ async function show(r) {
         .filter(p => typeof p.conf === "number")
         .sort((a, b) => b.conf - a.conf);
 
-    // Part numbers, descriptions and compatibility come from the detection API.
-    if (!S.parts.length) {
-        banner(
-            "info",
-            "No printer part was detected in this image. Try a clearer or closer photo, and check that the selected printer model is correct."
-        );
-        return;
-    }
-
-    // M-ER.3
-    S.base = !S.parts.some(p => p.box) && r.serverImage
-        ? await loadImg(r.serverImage)
-        : S.prep.canvas;
-
-    S.model = $("model").value;
+    S.model = r.model || $("model").value;
     S.version = r.version || "";
     S.record = r.record || "";
     S.sel = 0;
+    S.base = r.imageUrl ? await loadImg(r.imageUrl) : S.prep.canvas;
+    if (!S.parts.length) {
+        banner("info", "No printer part was detected. The result has been saved.");
+    }
 
     $("count").textContent =
         S.parts.length +
@@ -463,7 +434,7 @@ async function show(r) {
 
     $("meta").textContent =
         S.model + " · " +
-        S.secs.toFixed(1) + " s" +
+        (S.secs ? S.secs.toFixed(1) + " s" : "Saved result") +
         (S.secs > CFG.TARGET
             ? " (over the " + CFG.TARGET + " s target)"
             : "") +
@@ -508,8 +479,11 @@ async function show(r) {
     $("results").hidden = false;
 
     zoom(1);
-    select(0);
-    saveHistory();
+    if (S.parts.length) select(0);
+    else {
+        $("detail").replaceChildren();
+        render();
+    }
 
     $("results").scrollIntoView({
         behavior: "smooth",
@@ -655,169 +629,21 @@ window.addEventListener("resize", () => {
 /* ========================================
    Export package: annotated.png + results.json + results.csv (M-EX.1-3)
    ======================================== */
-$("exp").onclick = async () => {
-    const enc = new TextEncoder();
-
-    const png = new Uint8Array(
-        await (
-            await new Promise(r => $("cv").toBlob(r, "image/png"))
-        ).arrayBuffer()
-    );
-
-    const rows = S.parts.map(p => ({
-        part_number: p.num,
-        class: p.cls,
-        description: p.desc,
-        confidence: +p.conf.toFixed(4),
-        low_confidence: p.conf < CFG.LOW,
-        mfg_part_number: p.mfg || null,
-        user_feedback: p.fb || null,
-        bbox_norm_xywh: p.box
-            ? p.box.map(v => +v.toFixed(4))
-            : null
-    }));
-
-    const q = v =>
-        '"' + String(v ?? "").replace(/"/g, '""') + '"';
-
-    const csv =
-        "part_number,class,description,confidence,low_confidence,printer_model\n" +
-        rows.map(r => [
-            q(r.part_number),
-            q(r.class),
-            q(r.description),
-            r.confidence,
-            r.low_confidence,
-            q(S.model)
-        ].join(",")).join("\n");
-
-    const meta = {
-        created: new Date().toISOString(),
-        printer_model: S.model,
-        source_file: S.file.name,
-        model_version: S.version || null,
-        record_id: S.record || null,
-        response_seconds: +S.secs.toFixed(2),
-        parts: rows
-    };
-
-    const z = makeZip([
-        {
-            name: "annotated.png",
-            data: png
-        },
-        {
-            name: "results.json",
-            data: enc.encode(JSON.stringify(meta, null, 2))
-        },
-        {
-            name: "results.csv",
-            data: enc.encode("\ufeff" + csv)
-        }
-    ]);
-
-    const a = document.createElement("a");
-
-    a.href = URL.createObjectURL(z);
-    a.download = "detection_results.zip";
-
-    document.body.append(a);
-
-    a.click();
-    a.remove();
-
-    step(5);
-};
-
-function makeZip(files) {
-    const T = new Uint32Array(256);
-
-    for (let n = 0; n < 256; n++) {
-        let c = n;
-
-        for (let k = 0; k < 8; k++) {
-            c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
-        }
-
-        T[n] = c >>> 0;
+$("exp").onclick = () => {
+    if (!S.record) {
+        banner("info", "Simulated results are not saved. Run real recognition first.");
+        return;
     }
-
-    const crc = d => {
-        let c = 0xFFFFFFFF;
-
-        for (let i = 0; i < d.length; i++) {
-            c = T[(c ^ d[i]) & 255] ^ (c >>> 8);
-        }
-
-        return (c ^ 0xFFFFFFFF) >>> 0;
-    };
-
-    const enc = new TextEncoder();
-    const loc = [];
-    const cen = [];
-
-    let off = 0;
-
-    files.forEach(f => {
-        const nm = enc.encode(f.name);
-        const sz = f.data.length;
-        const c = crc(f.data);
-
-        const lh = new DataView(new ArrayBuffer(30));
-        const ch = new DataView(new ArrayBuffer(46));
-
-        lh.setUint32(0, 0x04034b50, true);
-        lh.setUint16(4, 20, true);
-        lh.setUint16(12, 33, true);
-        lh.setUint32(14, c, true);
-        lh.setUint32(18, sz, true);
-        lh.setUint32(22, sz, true);
-        lh.setUint16(26, nm.length, true);
-
-        ch.setUint32(0, 0x02014b50, true);
-        ch.setUint16(4, 20, true);
-        ch.setUint16(6, 20, true);
-        ch.setUint16(14, 33, true);
-        ch.setUint32(16, c, true);
-        ch.setUint32(20, sz, true);
-        ch.setUint32(24, sz, true);
-        ch.setUint16(28, nm.length, true);
-        ch.setUint32(42, off, true);
-
-        loc.push(
-            new Uint8Array(lh.buffer),
-            nm,
-            f.data
-        );
-
-        cen.push(
-            new Uint8Array(ch.buffer),
-            nm
-        );
-
-        off += 30 + nm.length + sz;
-    });
-
-    const cs = cen.reduce((s, a) => s + a.length, 0);
-    const e = new DataView(new ArrayBuffer(22));
-
-    e.setUint32(0, 0x06054b50, true);
-    e.setUint16(8, files.length, true);
-    e.setUint16(10, files.length, true);
-    e.setUint32(12, cs, true);
-    e.setUint32(16, off, true);
-
-    return new Blob(
-        [...loc, ...cen, new Uint8Array(e.buffer)],
-        { type: "application/zip" }
-    );
-}
-
+    window.location.href = "/api/results/" + S.record + "/export";
+};
 
 /* ========================================
    Reset
    ======================================== */
 $("reset").onclick = () => {
+    fileRequest++;
+    URL.revokeObjectURL($("pv").src);
+    S.record = "";
     S.file = S.prep = null;
     S.parts = [];
 
@@ -856,103 +682,66 @@ document.querySelectorAll("#tabs button").forEach(b => {
     };
 });
 
-const HK = "kamero.history.v1";
-
-function hist() {
+async function openHistory(id) {
+    if (working) return;
+    busy(true);
     try {
-        return JSON.parse(localStorage.getItem(HK)) || [];
-    } catch {
-        return [];
+        const response = await fetch("/api/results/" + id);
+        if (!response.ok) throw new Error("Could not reopen this recognition.");
+        const result = fromJson(await response.json());
+        $("reset").onclick();
+        S.secs = 0;
+        document.querySelector('#tabs button[data-v="rec"]').click();
+        await show(result);
+    } catch (error) {
+        banner("err", error.message);
+    } finally {
+        busy(false);
     }
 }
 
-function saveHistory() {
-    const cv = $("cv");
-    const k = 160 / Math.max(cv.width, cv.height);
-    const c = document.createElement("canvas");
-
-    c.width = Math.round(cv.width * k);
-    c.height = Math.round(cv.height * k);
-
-    c.getContext("2d").drawImage(
-        cv, 0, 0, c.width, c.height
-    );
-
-    const e = {
-        t: Date.now(),
-        model: S.model,
-        file: S.file.name,
-        secs: +S.secs.toFixed(1),
-        img: c.toDataURL("image/jpeg", 0.6),
-        parts: S.parts.map(p => [
-            p.num,
-            p.desc,
-            +p.conf.toFixed(3)
-        ])
-    };
-
+async function renderHistory() {
+    const list = $("hlist");
+    list.textContent = "Loading saved recognitions…";
     try {
-        localStorage.setItem(
-            HK,
-            JSON.stringify([e, ...hist()].slice(0, 20))
-        );
-    } catch {}
-}
-
-function renderHistory() {
-    const L = $("hlist");
-    const h = hist();
-
-    L.replaceChildren();
-
-    if (!h.length) {
-        const p = document.createElement("p");
-
-        p.className = "meta";
-        p.textContent =
-            "No recognitions yet. Results from this device will appear here.";
-
-        L.append(p);
-        return;
+        const response = await fetch("/api/results", {cache: "no-store"});
+        if (!response.ok) throw new Error("Could not load history.");
+        const records = await response.json();
+        list.replaceChildren();
+        if (!records.length) list.textContent = "No saved recognitions for this browser.";
+        for (const record of records) {
+            const row = document.createElement("div");
+            row.className = "hrow";
+            const text = document.createElement("span");
+            text.textContent = record.created + " · " + record.source_file + " · " +
+                (record.parts.map(p => p.part_number).join(", ") || "No part detected");
+            const open = document.createElement("button");
+            open.textContent = "Open result";
+            open.onclick = () => openHistory(record.record_id);
+            const download = document.createElement("a");
+            download.textContent = "Download ZIP";
+            download.href = "/api/results/" + record.record_id + "/export";
+            row.append(text, open, download);
+            list.append(row);
+        }
+    } catch (error) {
+        list.textContent = error.message;
     }
-
-    h.forEach(e => {
-        const r = document.createElement("div");
-        const i = new Image();
-        const t = document.createElement("div");
-        const b = document.createElement("b");
-        const s = document.createElement("small");
-        const u = document.createElement("small");
-
-        r.className = "hrow";
-
-        i.src = e.img;
-        i.alt = "";
-
-        b.textContent = e.file;
-
-        s.textContent =
-            new Date(e.t).toLocaleString() + " · " +
-            e.model + " · " +
-            e.secs + " s";
-
-        u.textContent = e.parts
-            .map(p => p[0] + " (" + Math.round(p[2] * 100) + "%)")
-            .join(", ");
-
-        t.append(b, s, u);
-        r.append(i, t);
-
-        L.append(r);
-    });
 }
 
-$("hclr").onclick = () => {
+$("hclr").onclick = async () => {
+    if (working || !confirm("Delete your saved recognitions, feedback and images?")) return;
+    busy(true);
     try {
-        localStorage.removeItem(HK);
-    } catch {}
-
-    renderHistory();
+        const response = await fetch("/api/results", {method: "DELETE"});
+        if (!response.ok) throw new Error("Could not clear history.");
+        $("reset").onclick();
+        await renderHistory();
+    } catch (error) {
+        banner("err", error.message);
+    } finally {
+        busy(false);
+    }
 };
 
 let feedbackPartsPromise;
@@ -1024,17 +813,34 @@ async function feedbackUI(d, p) {
     let choicesFailed = false;
     const updateNote = () => {
         note.textContent = p.fb
-            ? "Saved in the export for review."
+            ? "Saved to the database for review."
             : choicesFailed
                 ? "Part choices could not be loaded. You can still mark this result as unknown."
                 : "";
     };
     updateNote();
 
-    sel.onchange = () => {
-        p.fb = sel.value || undefined;
-
-        updateNote();
+    const recordId = S.record;
+    sel.disabled = !recordId || !p.id;
+    sel.onchange = async () => {
+        const value = sel.value;
+        sel.disabled = true;
+        note.textContent = "Saving…";
+        try {
+            const response = await fetch("/api/results/" + recordId + "/predictions/" + p.id + "/feedback", {
+                method: "PUT",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({value})
+            });
+            if (!response.ok) throw new Error("Feedback could not be saved.");
+            p.fb = value || undefined;
+            updateNote();
+        } catch (error) {
+            sel.value = p.fb || "";
+            note.textContent = error.message;
+        } finally {
+            sel.disabled = false;
+        }
     };
 
     w.append(sel, note);

@@ -6,20 +6,21 @@ import warnings
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.concurrency import run_in_threadpool
 
 from database import AsyncSessionLocal, PartCompatibility, PrinterModel, PrinterPart
+from result_api import owner_key, save_recognition
 
 router = APIRouter(tags=["Recognition"])
 logger = logging.getLogger(__name__)
 SUPPORTED_MODEL = "E877"
 MAX_BYTES = 10 * 1024 * 1024
 MAX_PIXELS = 20_000_000
-WEIGHTS = Path(__file__).resolve().parent / "../../models" / "best_v26_det.pt"
+WEIGHTS = Path(__file__).resolve().parents[2] / "models" / "best_v26_det.pt"
 
 
 class Detector:
@@ -116,7 +117,8 @@ async def recognition_models():
 
 
 @router.post("/detect")
-async def detect(request: Request, file: Annotated[UploadFile, File()], printer_model: Annotated[str, Form()],):
+async def detect(request: Request, file: Annotated[UploadFile, File()], printer_model: Annotated[str, Form()],
+                 owner: str = Depends(owner_key)):
     try:
         if printer_model.strip().upper() != SUPPORTED_MODEL:
             raise HTTPException(400, "Recognition is currently available only for E877.")
@@ -147,25 +149,18 @@ async def detect(request: Request, file: Annotated[UploadFile, File()], printer_
         except Exception as exc:
             logger.exception("E877 inference failed")
             raise HTTPException(500, "Part detection failed. Check the server log.") from exc
+        output = []
+        for prediction in predictions:
+            class_id = prediction["class_id"]
+            if class_id not in allowed:
+                continue
+            serial = detector.names[class_id]
+            output.append({**prediction, **catalogue[serial]})
+        try:
+            return await save_recognition(image, file.filename or "upload", detector.version,
+                                          SUPPORTED_MODEL, output, owner)
+        except SQLAlchemyError as exc:
+            logger.exception("Recognition persistence failed")
+            raise HTTPException(503, "Could not save recognition. Please retry.") from exc
     finally:
         image.close()
-
-    output = []
-    for prediction in predictions:
-        class_id = prediction["class_id"]
-        if class_id not in allowed:
-            continue
-        serial = detector.names[class_id]
-        output.append({
-            **prediction,
-            **catalogue[serial],
-            "class_name": serial,
-            "part_number": serial,
-            "compatibility": [SUPPORTED_MODEL],
-        })
-    return {
-        "status": "completed" if output else "no-detection",
-        "printer_model": SUPPORTED_MODEL,
-        "model_version": detector.version,
-        "parts": output,
-    }

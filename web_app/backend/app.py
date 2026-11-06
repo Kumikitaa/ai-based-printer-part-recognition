@@ -8,7 +8,8 @@ from fastapi.staticfiles import StaticFiles
 
 from catalogue_api import router
 from detection_api import router as detection_router, load_detector
-from database import engine
+from database import engine, init_db
+from result_api import router as result_router
 
 FRONTEND = Path(__file__).resolve().parent / "../frontend"
 
@@ -16,6 +17,7 @@ FRONTEND = Path(__file__).resolve().parent / "../frontend"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
+        await init_db()
         await load_detector(app)
         yield
     finally:
@@ -24,6 +26,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="System API", lifespan=lifespan)
 app.include_router(router)
 app.include_router(detection_router)
+app.include_router(result_router)
 app.mount("/assets", StaticFiles(directory=FRONTEND / "assets"), name="assets")
 
 
